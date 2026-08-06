@@ -1,3 +1,6 @@
 .DS_Store
 *.log
 .vercel
+
+# extraits de comparaison : locaux, non versionnés
+compare/

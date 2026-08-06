@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Banc d'écoute — quelle voix pour Señorita ?</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+<style>
+  .test{background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:1.3rem;margin-bottom:.8rem}
+  .test .es{font-family:var(--serif);font-size:1.3rem;color:var(--gold);line-height:1.4}
+  .test .meta{font-size:.8rem;color:var(--dim);margin:.3rem 0 1rem}
+  .test .meta b{color:var(--acc)}
+  .cands{display:flex;gap:.5rem;flex-wrap:wrap}
+  .cand{display:flex;align-items:center;gap:.5rem;padding:.55rem .8rem;border:1px solid var(--line);
+        border-radius:9px;background:var(--surf2);font-size:.9rem;transition:.15s}
+  .cand:hover{border-color:var(--dim)}
+  .cand.win{border-color:var(--acc);background:rgba(226,83,42,.12)}
+  .cand .tag{font-family:var(--serif);font-size:1.05rem;color:var(--tx)}
+  .cand .real{font-size:.74rem;color:var(--ok)}
+  .cand.playing{border-color:var(--gold)}
+  .verdict{background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:1.5rem;margin-top:1.5rem}
+  .score{display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--line);font-size:.95rem}
+  .score:last-child{border:none}
+  .score b{font-family:var(--serif);font-size:1.3rem;color:var(--gold)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Se<b>ñ</b>orita · banc d'écoute</div>
+  <nav><button onclick="location.href='index.html'">← Retour à l'app</button></nav>
+</header>
+
+<main>
+  <h2>Quelle voix mérite tes 90 jours ?</h2>
+  <p class="sub">
+    Les mêmes cinq phrases, chez chaque fournisseur. <b style="color:var(--tx)">En aveugle</b> :
+    les noms sont masqués, tu n'entends que des lettres. Savoir qu'on écoute « le plus cher »
+    suffit à le trouver meilleur — donc on ne le sait pas.
+    Écoute, clique sur celle que tu préfères pour chaque phrase, puis révèle.
+  </p>
+
+  <div id="content"></div>
+</main>
+
+<script src="js/corpus.js"></script>
+<script src="js/srs.js"></script>
+<script src="js/speech.js"></script>
+<script>
+Store.load();
+Store.data.settings = Object.assign({ rate: 1 }, Store.data.settings || {});
+Voice.init();
+
+const votes = {};
+let data = null, revealed = false, current = null;
+
+function play(src, node) {
+  document.querySelectorAll(".cand").forEach(n => n.classList.remove("playing"));
+  if (current) { try { current.pause(); } catch (e) {} }
+  Voice.stop();
+  node.classList.add("playing");
+  if (src === "__system__") {
+    Voice.say(node.dataset.text, 1, () => node.classList.remove("playing"));
+  } else {
+    const a = new Audio(src);
+    a.onended = () => node.classList.remove("playing");
+    a.onerror = () => { node.classList.remove("playing"); node.querySelector(".tag").textContent = "✗"; };
+    current = a; a.play().catch(() => node.classList.remove("playing"));
+  }
+}
+
+function render() {
+  const w = document.getElementById("content");
+  w.innerHTML = "";
+
+  data.tests.forEach(t => {
+    const box = document.createElement("div");
+    box.className = "test";
+    box.innerHTML = `<div class="es">${t.es}</div>
+      <div class="meta">${t.fr} &nbsp;·&nbsp; <b>${t.stress}</b></div>`;
+
+    const row = document.createElement("div");
+    row.className = "cands";
+
+    // référence : la voix système actuelle, pour mesurer l'écart
+    const sys = document.createElement("button");
+    sys.className = "cand";
+    sys.dataset.text = t.es;
+    sys.innerHTML = `<span class="tag">🔈</span><span style="color:var(--mut)">Système actuel${
+      Voice.chosen ? " · " + Voice.chosen.name : ""}</span>`;
+    sys.onclick = () => play("__system__", sys);
+    row.appendChild(sys);
+
+    data.providers.forEach(p => {
+      const file = p.clips[t.id];
+      const b = document.createElement("button");
+      b.className = "cand" + (votes[t.id] === p.blind ? " win" : "");
+      b.innerHTML = `<span class="tag">${p.blind}</span>` +
+        (revealed ? `<span class="real">${p.label}${p.voice ? " · " + p.voice : ""}</span>` : "");
+      b.onclick = e => {
+        if (e.shiftKey || !file) return;
+        play("compare/" + file, b);
+        votes[t.id] = p.blind;
+        document.querySelectorAll(`[data-test="${t.id}"]`).forEach(n => n.classList.remove("win"));
+        b.classList.add("win");
+        renderVerdict();
+      };
+      b.dataset.test = t.id;
+      if (!file) { b.disabled = true; b.style.opacity = .3; }
+      row.appendChild(b);
+    });
+
+    box.appendChild(row);
+    w.appendChild(box);
+  });
+
+  const v = document.createElement("div");
+  v.className = "verdict"; v.id = "verdict";
+  w.appendChild(v);
+  renderVerdict();
+}
+
+function renderVerdict() {
+  const v = document.getElementById("verdict"); if (!v) return;
+  const tally = {};
+  Object.values(votes).forEach(b => tally[b] = (tally[b] || 0) + 1);
+  const n = Object.keys(votes).length;
+
+  v.innerHTML = `<h3 style="margin-top:0">Ton verdict — ${n}/${data.tests.length} phrases tranchées</h3>` +
+    data.providers.map(p =>
+      `<div class="score"><span>${revealed
+        ? `<b style="font-size:1rem;font-family:var(--sans)">${p.label}</b> <span style="color:var(--dim);font-size:.82rem">${p.voice || ""}</span>`
+        : `Voix ${p.blind}`}</span><b>${tally[p.blind] || 0}</b></div>`).join("");
+
+  if (!revealed) {
+    const btn = document.createElement("button");
+    btn.className = "btn pri";
+    btn.style.marginTop = "1.2rem";
+    btn.textContent = n < data.tests.length ? `Révéler les noms (${data.tests.length - n} phrase(s) non tranchée(s))` : "Révéler les noms";
+    btn.onclick = () => { revealed = true; render(); };
+    v.appendChild(btn);
+  } else {
+    const best = data.providers.map(p => ({ p, n: tally[p.blind] || 0 })).sort((a, b) => b.n - a.n)[0];
+    const tip = document.createElement("p");
+    tip.style.cssText = "color:var(--mut);font-size:.9rem;margin-top:1.2rem;line-height:1.6";
+    tip.innerHTML = best && best.n
+      ? `Ton oreille a choisi <b style="color:var(--gold)">${best.p.label}</b>. Pour générer tout le corpus avec :
+         <br><code style="color:var(--tx)">node tools/generate-audio.mjs --provider ${best.p.id}</code>
+         <br><span style="color:var(--dim);font-size:.85rem">Ajoute <code>--voice id1,id2</code> pour deux locuteurs — l'app alterne alors entre eux, et ta compréhension cesse d'être collée à une seule voix.</span>`
+      : `Aucun vote. Réécoute et tranche : c'est ton oreille qui va s'entraîner pendant 90 jours, pas la mienne.`;
+    v.appendChild(tip);
+  }
+}
+
+fetch("compare/index.json", { cache: "no-cache" })
+  .then(r => { if (!r.ok) throw 0; return r.json(); })
+  .then(d => { data = d; render(); })
+  .catch(() => {
+    document.getElementById("content").innerHTML = `
+      <div class="warn-box">
+        <b>Les extraits n'ont pas encore été générés.</b><br>
+        <span style="color:var(--mut)">Exporte au moins une clé dans ton terminal, puis lance la génération.
+        Les clés restent chez toi — elles ne sont écrites nulle part et ne partent pas dans le navigateur.</span>
+      </div>
+      <div class="card"><pre style="color:var(--mut);font-size:.85rem;line-height:1.9;overflow-x:auto;margin:0"><code>cd ~/Documents/séniorita
+
+<span style="color:var(--dim)"># une seule suffit, les trois c'est mieux pour comparer</span>
+export ELEVENLABS_API_KEY=...
+export OPENAI_API_KEY=sk-...
+export AZURE_SPEECH_KEY=...  AZURE_SPEECH_REGION=westeurope
+
+node tools/compare-voices.mjs</code></pre></div>
+      <p class="sub" style="margin-top:1rem">Puis recharge cette page.</p>`;
+  });
+</script>
+</body>
+</html>
