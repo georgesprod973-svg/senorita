@@ -126,8 +126,15 @@
   <h2>Réglages</h2>
   <p class="sub">Cale la machine sur ton rythme réel, pas sur celui que tu voudrais avoir.</p>
   <div class="card">
+    <div id="audio-state"></div>
     <label class="field"><span>Voix espagnole</span><select id="s-voice"></select></label>
-    <label class="field"><span>Vitesse de la voix — <b id="s-rate-v">0.9</b>×</span>
+    <h3 style="margin-top:1.4rem">Banc d'essai des voix</h3>
+    <p style="color:var(--dim);font-size:.84rem;margin-bottom:.8rem">
+      Écoute la même phrase dans chaque voix installée et garde la moins pénible.
+      Classées par qualité estimée, les meilleures en haut.
+    </p>
+    <div id="voice-lab"></div>
+    <label class="field" style="margin-top:1.4rem"><span>Vitesse de la voix — <b id="s-rate-v">0.9</b>×</span>
       <input type="range" id="s-rate" min="0.5" max="1.2" step="0.05" style="width:100%;accent-color:var(--acc)"></label>
     <label class="field"><span>Nouvelles phrases par jour — <b id="s-new-v">8</b></span>
       <input type="range" id="s-new" min="3" max="25" step="1" style="width:100%;accent-color:var(--acc)"></label>
@@ -158,6 +165,7 @@
 <script src="js/corpus.js"></script>
 <script src="js/srs.js"></script>
 <script src="js/speech.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

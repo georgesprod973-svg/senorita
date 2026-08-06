@@ -7,18 +7,36 @@ const Voice = {
   voices: [],
   chosen: null,
 
+  /** Voix « fantaisie » d'Apple : stylisées, inutilisables pour apprendre. */
+  NOVELTY: /\b(Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Bahh|Bells|Boing|Bubbles|Cellos|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Albert|Junior|Ralph|Kathy)\b/i,
+
+  /** Note de qualité : plus c'est haut, mieux c'est. Sert au tri et à l'auto-sélection. */
+  rank(v) {
+    let s = 0;
+    if (/premium|enhanced|neural|siri/i.test(v.name)) s += 100;   // vraies voix neuronales
+    if (!v.localService) s += 40;                                  // voix serveur (Google, Microsoft)
+    if (/Mónica|Monica|Paulina|Jorge|Diego|Elvira|Alvaro|Dalia/i.test(v.name)) s += 20;
+    if (this.NOVELTY.test(v.name)) s -= 60;
+    if (v.lang === "es-ES") s += 5;
+    return s;
+  },
+
   init() {
     const load = () => {
-      this.voices = speechSynthesis.getVoices().filter(v => /^es/i.test(v.lang));
+      this.voices = speechSynthesis.getVoices()
+        .filter(v => /^es/i.test(v.lang))
+        .sort((a, b) => this.rank(b) - this.rank(a));
       const pref = Store.data.settings.voice;
-      this.chosen = this.voices.find(v => v.voiceURI === pref)
-        || this.voices.find(v => /Mónica|Monica|Jorge|Paulina|Diego/i.test(v.name))
-        || this.voices.find(v => v.lang === "es-ES")
-        || this.voices[0] || null;
+      this.chosen = this.voices.find(v => v.voiceURI === pref) || this.voices[0] || null;
       document.dispatchEvent(new Event("voices-ready"));
     };
     load();
     speechSynthesis.onvoiceschanged = load;
+  },
+
+  /** Aucune voix correcte installée : on doit le dire, pas le cacher. */
+  bestIsPoor() {
+    return !!this.chosen && this.rank(this.chosen) < 100;
   },
 
   available() { return this.voices.length > 0; },

@@ -9,6 +9,7 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 Store.load();
 Store.data.settings = Object.assign({ newPerDay: 8, rate: 0.9, voice: null, sessionMin: 16 }, Store.data.settings || {});
 Voice.init();
+Sound.init();
 
 /* ── Micro : on teste vraiment, et on le dit ─────────────── */
 
@@ -136,7 +137,7 @@ const Session = {
     const exs = el("div", "exs");
     r.ex.forEach(([a, b]) => {
       const row = el("div", "ex", `<span class="a">${a}</span><span class="arr">→</span><span class="b">${b}</span>`);
-      row.querySelector(".b").onclick = () => Voice.say(b.replace(/\s*\(.*/, ""));
+      row.querySelector(".b").onclick = () => Sound.play(b.replace(/\s*\(.*/, ""));
       exs.appendChild(row);
     });
     box.appendChild(exs);
@@ -214,7 +215,7 @@ const Session = {
       Ears.stop();
       reveal.classList.remove("hidden");
       actions.classList.add("hidden");
-      Voice.say(c.es);
+      Sound.play(c.es);
       const g = el("div", "grades");
       [[1, "Raté", "revoir dans 6 min"], [2, "Dur", "revoir bientôt"], [3, "Bien", "espacé normalement"], [4, "Trop facile", "on saute loin"]]
         .forEach(([n, lab, sub]) => {
@@ -231,7 +232,7 @@ const Session = {
       s.appendChild(g);
       const again = el("button", "btn", "🔊 Réécouter");
       again.style.marginTop = ".7rem";
-      again.onclick = () => Voice.say(c.es);
+      again.onclick = () => Sound.play(c.es);
       s.appendChild(again);
     };
   },
@@ -259,7 +260,7 @@ const Session = {
 
       const row = el("div", "row"); row.style.justifyContent = "center";
       const play = el("button", "btn pri", "🔊 Écouter puis répéter par-dessus");
-      play.onclick = () => { Voice.say(c.es, +sl.value); this.spoke += 4; };
+      play.onclick = () => { Sound.play(c.es, +sl.value); this.spoke += 4; };
       const nx = el("button", "btn", "Suivante →");
       nx.onclick = () => { k++; draw(); };
       row.append(play, nx);
@@ -272,7 +273,7 @@ const Session = {
       skip.onclick = () => this.next();
       s.appendChild(skip);
 
-      Voice.say(c.es, +sl.value);
+      Sound.play(c.es, +sl.value);
     };
     draw();
   },
@@ -378,7 +379,7 @@ function renderRules() {
     const exs = el("div", "exs");
     r.ex.forEach(([a, b]) => {
       const row = el("div", "ex", `<span class="a">${a}</span><span class="arr">→</span><span class="b">${b}</span>`);
-      row.querySelector(".b").onclick = () => Voice.say(b.replace(/\s*\(.*/, "").replace(/[A-Z]{3,}.*/, ""));
+      row.querySelector(".b").onclick = () => Sound.play(b.replace(/\s*\(.*/, "").replace(/[A-Z]{3,}.*/, ""));
       exs.appendChild(row);
     });
     box.appendChild(exs);
@@ -448,7 +449,7 @@ function renderMined() {
   }
   [...Store.data.mined].reverse().forEach(m => {
     const row = el("div", "mined-row", `<span class="es">${m.es}</span><span class="fr">${m.fr}</span>`);
-    const p = el("button", null, "🔊"); p.onclick = () => Voice.say(m.es);
+    const p = el("button", null, "🔊"); p.onclick = () => Sound.play(m.es);
     const d = el("button", null, "✕");
     d.onclick = () => {
       Store.data.mined = Store.data.mined.filter(x => x.id !== m.id);
@@ -497,6 +498,64 @@ function renderSettings() {
   });
   const retry = $("#s-mic-retry");
   if (retry) retry.onclick = async () => { Ears.status = null; await micBanner(); renderSettings(); };
+
+  renderAudioState();
+  renderVoiceLab();
+}
+
+/* Phrase de test : sons durs de l'espagnol (j, rr, ñ, ll, diphtongues).
+   Une voix qui passe celle-là passe tout le reste. */
+const VOICE_TEST = "El señor Jiménez trabaja en el barrio y siempre llega tarde. ¡Qué guay!";
+
+function renderAudioState() {
+  const box = $("#audio-state"); if (!box) return;
+  const cov = Sound.coverage();
+  if (cov.n) {
+    box.innerHTML = `<div class="warn-box" style="background:rgba(95,168,96,.09);border-color:#2c4a2d;color:var(--ok);margin-bottom:1.2rem">
+      <b>🎧 Voix neuronale active</b><br>
+      <span style="color:var(--mut)">${cov.n} / ${cov.total} phrases du corpus ont un vrai fichier audio. Le reste passe par la synthèse du navigateur.</span></div>`;
+  } else if (Voice.bestIsPoor()) {
+    box.innerHTML = `<div class="warn-box" style="margin-bottom:1.2rem">
+      <b>🔈 Aucune voix de qualité installée</b><br>
+      <span style="color:var(--mut)">Tu écoutes une voix « compact », le tier le plus bas de macOS. Deux façons d'en sortir :</span>
+      <ol style="color:var(--mut);margin:.6rem 0 0 1.1rem;font-size:.86rem;line-height:1.7">
+        <li><b>Gratuit, 3 min</b> — Réglages Système → Accessibilité → Contenu énoncé → Voix système →
+            <i>Gérer les voix</i> → Espagnol → télécharge <b>Mónica (Premium)</b>. Recharge cette page ensuite.</li>
+        <li><b>Le vrai correctif</b> — génère l'audio une fois pour toutes :
+            <code>node tools/generate-audio.mjs --provider openai</code></li>
+      </ol></div>`;
+  } else { box.innerHTML = ""; }
+}
+
+function renderVoiceLab() {
+  const w = $("#voice-lab"); if (!w) return;
+  w.innerHTML = "";
+  if (!Voice.voices.length) { w.innerHTML = `<span style="color:var(--dim);font-size:.86rem">Aucune voix espagnole détectée sur cette machine.</span>`; return; }
+
+  Voice.voices.forEach(v => {
+    const score = Voice.rank(v);
+    const tier = score >= 100 ? ["Premium", "var(--ok)"]
+      : score < 0 ? ["Fantaisie", "var(--bad)"]
+      : ["Compact", "var(--warn)"];
+    const on = Voice.chosen && v.voiceURI === Voice.chosen.voiceURI;
+    const row = el("div", "mined-row");
+    row.style.borderLeft = on ? "2px solid var(--acc)" : "2px solid transparent";
+    row.innerHTML = `<span class="es" style="flex:2">${v.name}</span>
+      <span class="fr" style="flex:0 0 5rem;font-size:.78rem">${v.lang}</span>
+      <span style="flex:0 0 5.5rem;font-size:.72rem;color:${tier[1]}">${tier[0]}</span>`;
+    const play = el("button", null, "🔊");
+    play.title = "Écouter la phrase test";
+    play.onclick = () => { Voice.chosen = v; Voice.say(VOICE_TEST); };
+    const pick = el("button", null, on ? "✓" : "choisir");
+    pick.style.fontSize = on ? "1.1rem" : ".78rem";
+    pick.style.color = on ? "var(--acc)" : "var(--dim)";
+    pick.onclick = () => {
+      Voice.chosen = v; Store.data.settings.voice = v.voiceURI; Store.save();
+      renderVoiceLab(); renderSettings();
+    };
+    row.append(play, pick);
+    w.appendChild(row);
+  });
 }
 
 $("#s-export").onclick = () => {
@@ -522,6 +581,7 @@ $("#s-reset").onclick = () => {
   }
 };
 
+document.addEventListener("sound-ready", () => { if ($("#v-set").classList.contains("on")) renderSettings(); });
 document.addEventListener("voices-ready", () => { if ($("#v-set").classList.contains("on")) renderSettings(); });
 
 /* ── Go ─────────────────────────────────────────────────── */
