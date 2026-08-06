@@ -41,6 +41,36 @@ async function micBanner() {
   $("#v-session").prepend(b);
 }
 
+
+/* ── Univers ─────────────────────────────────────────────
+   Six ambiances, une par famille de situations. Elles ne servent
+   pas à décorer : associer une phrase à un lieu mental aide à la
+   rappeler. C'est le même principe que la méthode des lieux. */
+const AMBIANCES = {
+  bar:     ["resto", "social", "argot"],
+  mercado: ["achat"],
+  calle:   ["survie", "base", "meta"],
+  oficina: ["travail", "abstrait"],
+  casa:    ["quotidien", "passé", "récit", "opinion", "connecteur"],
+  noche:   ["futur", "subjonctif", "conditionnel", "impératif", "perso"]
+};
+const TAG2AMB = {};
+for (const a in AMBIANCES) AMBIANCES[a].forEach(t => TAG2AMB[t] = a);
+
+let ambCur = null, ambLayer = 0;
+function setAmbience(tag) {
+  const name = TAG2AMB[tag] || "calle";
+  if (name === ambCur) return;
+  ambCur = name;
+  const layers = $$("#ambience i");
+  if (!layers.length) return;
+  ambLayer = 1 - ambLayer;
+  const next = layers[ambLayer];
+  next.style.backgroundImage = `url(univers/${name}.jpg)`;
+  next.classList.add("on");
+  layers[1 - ambLayer].classList.remove("on");
+}
+
 /* ── Navigation ─────────────────────────────────────────── */
 function show(v) {
   $$("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
@@ -48,6 +78,7 @@ function show(v) {
   if (v !== "session") Session.abort();
   if (v === "home") renderHome();
   if (v === "rules") renderRules();
+  if (v === "meca") renderMeca();
   if (v === "islands") renderIslands();
   if (v === "mine") renderMined();
   if (v === "set") renderSettings();
@@ -85,11 +116,19 @@ $("#go").onclick = () => { show("session"); Session.start(); };
    ============================================================ */
 
 const PHASES = [
-  { key: "decode", name: "Phase 1 · Décodage", why: "Une règle de conversion FR→ES. Deux minutes ici valent des semaines de fiches de vocabulaire.", w: .12 },
-  { key: "recall", name: "Phase 2 · Rappel actif", why: "Tu produis la phrase à voix haute AVANT de voir la réponse. L'effort de récupération est ce qui grave la mémoire — le reconnaître ne suffit pas.", w: .45 },
-  { key: "shadow", name: "Phase 3 · Shadowing", why: "Tu colles à la voix native, en même temps qu'elle. C'est ce qui installe le rythme et l'accent, pas la théorie phonétique.", w: .18 },
-  { key: "produce", name: "Phase 4 · Production libre", why: "Soixante secondes sans filet. Le micro transcrit ce que tu as réellement dit — pas ce que tu crois avoir dit.", w: .25 }
+  { key: "decode", name: "Phase 1 · Décodage", why: "Une règle de conversion FR→ES. Deux minutes ici valent des semaines de fiches de vocabulaire.", w: .10 },
+  { key: "recall", name: "Phase 2 · Rappel actif", why: "Tu produis la phrase à voix haute AVANT de voir la réponse. Bloqué ? Prends un indice — l'échelle est là pour ça, pas la honte.", w: .36 },
+  { key: "listen", name: "Phase 3 · Compréhension", why: "Tu entends sans voir. Reconstruis la phrase. C'est l'entraînement qui te fera comprendre une série — et il ne ressemble à aucun autre.", w: .18 },
+  { key: "shadow", name: "Phase 4 · Shadowing", why: "Tu colles à la voix native, en même temps qu'elle. C'est ce qui installe le rythme et l'accent, pas la théorie phonétique.", w: .14 },
+  { key: "produce", name: "Phase 5 · Production libre", why: "Soixante secondes sans filet. Le micro transcrit ce que tu as réellement dit — pas ce que tu crois avoir dit.", w: .22 }
 ];
+
+/* Échelle d'indices : « je ne sais pas » n'est pas une réponse utile.
+   On descend marche par marche jusqu'à ce que ça débloque. */
+function skeleton(s, revealWords = 0) {
+  let i = 0;
+  return s.replace(/[\p{L}\p{M}]+/gu, w => (i++ < revealWords) ? w : w[0] + "·".repeat(w.length - 1));
+}
 
 const Session = {
   live: false, i: 0, t0: 0, budget: 0,
@@ -162,6 +201,7 @@ const Session = {
     this.cur = this.queue.shift();
     const c = this.cur, s = $("#stage");
     const isNew = !SRS.card(c.id);
+    setAmbience(c.tag);
     s.innerHTML = "";
 
     const stage = el("div", "stage");
@@ -202,10 +242,31 @@ const Session = {
       );
     };
 
+    /* ---- Échelle d'indices ----
+       Sans elle, une phrase inconnue est un mur : tu ne produis rien, tu
+       cliques « révéler », tu lis. Lire n'apprend pas. Avec l'échelle, tu
+       produis toujours quelque chose — c'est l'effort partiel qui grave. */
+    const hintBox = el("div", "hint");
+    stage.appendChild(hintBox);
+    let hints = 0;
+
+    const HINTS = [
+      () => { hintBox.innerHTML = `<span class="hint-lab">Squelette</span><span class="hint-txt">${skeleton(c.es)}</span>`; },
+      () => { hintBox.innerHTML = `<span class="hint-lab">Premier mot</span><span class="hint-txt">${skeleton(c.es, 1)}</span>`; Sound.play(c.es); },
+      () => { hintBox.innerHTML = `<span class="hint-lab">Moitié</span><span class="hint-txt">${skeleton(c.es, Math.ceil(c.es.split(/\s+/).length / 2))}</span>`; }
+    ];
+
+    const hintBtn = el("button", "btn", "Un indice ↓");
+    hintBtn.onclick = () => {
+      if (hints >= HINTS.length) return showAnswer();
+      HINTS[hints++]();
+      hintBtn.textContent = hints >= HINTS.length ? "Montre-moi la réponse" : `Encore un indice ↓ (${hints}/${HINTS.length})`;
+    };
+
     const revBtn = el("button", "btn pri", "Je l'ai dite → révéler");
     revBtn.onclick = () => showAnswer();
 
-    actions.append(micBtn, revBtn);
+    actions.append(hintBtn, micBtn, revBtn);
     stage.appendChild(actions);
     stage.appendChild(el("div", "tap-hint", "Dis-la à voix haute. Vraiment à voix haute. Pas dans ta tête."));
     s.appendChild(stage);
@@ -217,8 +278,11 @@ const Session = {
       actions.classList.add("hidden");
       Sound.play(c.es);
       const g = el("div", "grades");
-      [[1, "Raté", "revoir dans 6 min"], [2, "Dur", "revoir bientôt"], [3, "Bien", "espacé normalement"], [4, "Trop facile", "on saute loin"]]
-        .forEach(([n, lab, sub]) => {
+      const scale = hints === 0
+        ? [[1, "Raté", "revoir dans 6 min"], [2, "Dur", "revoir bientôt"], [3, "Bien", "espacé normalement"], [4, "Trop facile", "on saute loin"]]
+        : [[1, "Raté", "revoir dans 6 min"], [2, "Dur", "revoir bientôt"], [3, "Sortie avec l'indice", "espacé, mais moins"]];
+      if (hints) g.style.gridTemplateColumns = "repeat(3,1fr)";
+      scale.forEach(([n, lab, sub]) => {
           const b = el("button", null, `${lab}<small>${sub}</small>`);
           b.dataset.g = n;
           b.onclick = () => {
@@ -227,8 +291,8 @@ const Session = {
             this.done++; SRS.today().reviews++; Store.save();
             this.ph_recall();
           };
-          g.appendChild(b);
-        });
+        g.appendChild(b);
+      });
       s.appendChild(g);
       const again = el("button", "btn", "🔊 Réécouter");
       again.style.marginTop = ".7rem";
@@ -237,7 +301,104 @@ const Session = {
     };
   },
 
-  /* ---------- Phase 3 : shadowing ---------- */
+  /* ---------- Phase 3 : compréhension orale ----------
+     Le trou béant des méthodes classiques. On sait produire des phrases
+     apprises, et on ne comprend toujours rien à un natif. Ici : audio seul,
+     aucun texte, et tu reconstruis avec une banque de mots. Pas de clavier —
+     à ton niveau, taper l'orthographe serait un second obstacle inutile. */
+  ph_listen() {
+    const pool = SRS.all().filter(c => SRS.card(c.id) && c.es.split(/\s+/).length >= 3);
+    if (pool.length < 2) return this.next();
+    let k = 0;
+    const s = $("#stage");
+
+    const draw = () => {
+      if (this.overtime() && k > 0) return this.next();
+      const c = pool[(this.done + k) % pool.length];
+      k++;
+      setAmbience(c.tag);
+      s.innerHTML = "";
+
+      const target = c.es.split(/\s+/);
+      // distracteurs : des mots d'autres phrases déjà vues, donc plausibles
+      const others = pool.filter(x => x !== c).flatMap(x => x.es.split(/\s+/));
+      // mélange déterministe mais réellement varié : on trie sur le hash du mot,
+      // donc chaque phrase produit un ordre différent, et le même à chaque passage
+      const h = w => { let n = 0; for (const ch of w + c.id) n = (n * 31 + ch.charCodeAt(0)) >>> 0; return n; };
+      const noise = [...new Set(others)].filter(w => !target.includes(w))
+        .sort((a, b) => h(a) - h(b)).slice(0, Math.min(3, Math.ceil(target.length / 3)));
+      const bank = [...new Set([...target, ...noise])]
+        .map(w => ({ w })).sort((a, b) => h(a.w) - h(b.w));
+
+      const stage = el("div", "stage");
+      stage.appendChild(el("div", "phase-name", "Écoute, puis reconstruis"));
+
+      const playBtn = el("button", "btn pri big", "🔊 Écouter");
+      playBtn.onclick = () => Sound.play(c.es);
+      stage.appendChild(playBtn);
+
+      const slow = el("button", "btn", "🐢 Plus lentement");
+      slow.onclick = () => Sound.play(c.es, 0.6);
+      stage.appendChild(slow);
+
+      const built = el("div", "built");
+      built.dataset.empty = "1";
+      stage.appendChild(built);
+
+      const bankEl = el("div", "bank");
+      const chosen = [];
+
+      const refresh = () => {
+        built.innerHTML = chosen.length
+          ? chosen.map((w, i) => `<button class="chip on" data-i="${i}">${w}</button>`).join("")
+          : `<span class="tap-hint">Touche les mots dans l'ordre que tu as entendu</span>`;
+        built.querySelectorAll("button").forEach(b => b.onclick = () => {
+          const w = chosen.splice(+b.dataset.i, 1)[0];
+          bankEl.querySelectorAll("button").forEach(x => { if (x.textContent === w && x.disabled) { x.disabled = false; return; } });
+          refresh();
+        });
+      };
+
+      bank.forEach(({ w }) => {
+        const b = el("button", "chip", w);
+        b.onclick = () => { if (b.disabled) return; b.disabled = true; chosen.push(w); refresh(); };
+        bankEl.appendChild(b);
+      });
+      stage.appendChild(bankEl);
+      refresh();
+
+      const verdict = el("div", "transcript");
+      stage.appendChild(verdict);
+
+      const row = el("div", "row"); row.style.justifyContent = "center";
+      const check = el("button", "btn pri", "Vérifier");
+      check.onclick = () => {
+        const said = chosen.join(" ");
+        const okAll = Match.norm(said) === Match.norm(c.es);
+        const r = Match.score(said, c.es);
+        verdict.innerHTML = `<div class="answer-es sm">${c.es}</div>
+          <div style="color:var(--mut);font-size:.95rem;margin:.4rem 0 .2rem">${c.fr}</div>
+          <div class="scoreline">${okAll
+            ? `<span style="color:var(--ok)">Exact. C'est ton oreille qui a fait ça, pas tes yeux.</span>`
+            : `${r.pct}% de la phrase reconstruite — réécoute en ralenti et repère ce qui t'a échappé.`}</div>`;
+        Sound.play(c.es);
+        SRS.today().reviews++; Store.save();
+        check.disabled = true;
+      };
+      const nx = el("button", "btn", "Suivante →");
+      nx.onclick = () => draw();
+      const skip = el("button", "btn", "Passer au shadowing →");
+      skip.onclick = () => this.next();
+      row.append(check, nx, skip);
+      stage.appendChild(row);
+      s.appendChild(stage);
+
+      Sound.play(c.es);
+    };
+    draw();
+  },
+
+  /* ---------- Phase 4 : shadowing ---------- */
   ph_shadow() {
     const pool = SRS.all().filter(c => SRS.card(c.id)).sort((a, b) => b.lvl - a.lvl);
     if (!pool.length) return this.next();
@@ -247,6 +408,7 @@ const Session = {
     const draw = () => {
       if (k >= pool.length || this.overtime() && k > 2) return this.next();
       const c = pool[k % pool.length];
+      setAmbience(c.tag);
       s.innerHTML = "";
       const stage = el("div", "stage");
       stage.appendChild(el("div", "answer-es sm", c.es));
@@ -278,7 +440,7 @@ const Session = {
     draw();
   },
 
-  /* ---------- Phase 4 : production libre ---------- */
+  /* ---------- Phase 5 : production libre ---------- */
   ph_produce() {
     const lvl = Math.max(1, Math.min(6, Math.ceil(SRS.mastered() / 25) + 1));
     const pool = PROMPTS.filter(p => p.lvl <= lvl);
@@ -390,6 +552,121 @@ function renderRules() {
     w.appendChild(box);
   });
 }
+
+
+/* ── Mécaniques ─────────────────────────────────────────── */
+function renderMeca() {
+  const w = $("#meca-list"); w.innerHTML = "";
+  MECANIQUES.forEach(m => {
+    const done = Store.data.meca?.[m.id];
+    const box = el("div", "rule" + (done ? " got" : ""));
+    box.innerHTML = `<div class="rule-h"><b>${m.title}</b><span class="gain">${m.sub}</span></div>
+      <p style="color:var(--mut);font-size:.9rem;margin:.6rem 0 .9rem">${m.trap}</p>
+      <div class="exs">${m.rule.map(([k, v]) =>
+        `<div class="ex" style="grid-template-columns:9rem 1fr"><span class="a" style="color:var(--gold);text-align:left">${k}</span><span style="color:var(--mut);font-size:.88rem">${v}</span></div>`).join("")}</div>
+      <div class="killer">${m.killer}</div>`;
+
+    const fromWrap = el("div");
+    fromWrap.appendChild(el("div", "hint-lab", "Tu l'as déjà rencontré ici"));
+    const fr = el("div", "cands");
+    m.from.forEach(t => {
+      const b = el("button", "chip", t);
+      b.onclick = () => Sound.play(t);
+      fr.appendChild(b);
+    });
+    fromWrap.appendChild(fr);
+    box.appendChild(fromWrap);
+
+    /* Le drill : on te fait tomber dans le piège avant de l'expliquer. */
+    const drill = el("div", "drill");
+    let idx = 0, score = 0;
+    const step = () => {
+      if (idx >= m.drill.length) {
+        Store.data.meca = Store.data.meca || {};
+        Store.data.meca[m.id] = { score, total: m.drill.length, at: Date.now() };
+        Store.save();
+        drill.innerHTML = `<div class="drill-done"><b>${score}/${m.drill.length}</b>
+          <span>${score === m.drill.length ? "Mécanique verrouillée."
+            : score >= m.drill.length - 1 ? "Presque. Relis le piège en haut, puis recommence."
+            : "Normal au début — c'est exactement pour ça que cette section existe. Reprends."}</span></div>`;
+        const again = el("button", "btn", "Refaire");
+        again.onclick = () => { idx = 0; score = 0; step(); };
+        drill.appendChild(again);
+        return;
+      }
+      const d = m.drill[idx];
+      drill.innerHTML = `<div class="drill-q"><span class="drill-n">${idx + 1}/${m.drill.length}</span>${d.q.replace("___", "<b>___</b>")}</div>`;
+      const opts = el("div", "row");
+      d.opts.forEach((o, i) => {
+        const b = el("button", "btn", o);
+        b.onclick = () => {
+          const good = i === d.a;
+          if (good) score++;
+          opts.querySelectorAll("button").forEach(x => x.disabled = true);
+          b.style.borderColor = good ? "var(--ok)" : "var(--bad)";
+          if (!good) opts.querySelectorAll("button")[d.a].style.borderColor = "var(--ok)";
+          const why = el("div", "drill-why", `${good ? "✓" : "✗"} ${d.why}`);
+          drill.appendChild(why);
+          const nx = el("button", "btn pri", "Suivante");
+          nx.style.marginTop = ".7rem";
+          nx.onclick = () => { idx++; step(); };
+          drill.appendChild(nx);
+        };
+        opts.appendChild(b);
+      });
+      drill.appendChild(opts);
+    };
+    box.appendChild(drill);
+    step();
+    w.appendChild(box);
+  });
+}
+
+function renderConj() {
+  const w = $("#conj-list"); w.innerHTML = "";
+  const tsel = el("div", "row");
+  tsel.style.marginBottom = "1.2rem";
+  let temps = "pres";
+  const draw = () => {
+    tsel.querySelectorAll("button").forEach(b => b.classList.toggle("pri", b.dataset.k === temps));
+    tables.innerHTML = "";
+    const t = TEMPS.find(x => x.k === temps);
+    tables.appendChild(el("div", "warn-box", `<b>${t.n}</b> — <span style="color:var(--mut)">${t.why}</span>`));
+    VERBES.forEach(v => {
+      const box = el("div", "rule");
+      box.innerHTML = `<div class="rule-h"><b>${v.inf}</b><span class="gain">${v.fr}</span>${
+        v.irr ? '<span class="gain" style="background:rgba(200,80,63,.14);color:var(--bad)">irrégulier</span>' : ""}</div>`;
+      const grid = el("div", "conj");
+      v[temps].forEach((f, i) => {
+        const cell = el("button", "conj-cell", `<span>${PRONOMS[i]}</span><b>${f}</b>`);
+        cell.onclick = () => Voice.say(f);
+        grid.appendChild(cell);
+      });
+      box.appendChild(grid);
+      tables.appendChild(box);
+    });
+  };
+  TEMPS.forEach(t => {
+    const b = el("button", "btn", t.n);
+    b.dataset.k = t.k;
+    b.onclick = () => { temps = t.k; draw(); };
+    tsel.appendChild(b);
+  });
+  w.appendChild(tsel);
+  const tables = el("div");
+  w.appendChild(tables);
+  draw();
+}
+
+$("#meca-tab-p").onclick = () => {
+  $("#meca-tab-p").classList.add("pri"); $("#meca-tab-c").classList.remove("pri");
+  $("#meca-list").classList.remove("hidden"); $("#conj-list").classList.add("hidden");
+};
+$("#meca-tab-c").onclick = () => {
+  $("#meca-tab-c").classList.add("pri"); $("#meca-tab-p").classList.remove("pri");
+  $("#conj-list").classList.remove("hidden"); $("#meca-list").classList.add("hidden");
+  renderConj();
+};
 
 /* ── Îlots ─────────────────────────────────────────────── */
 function renderIslands() {

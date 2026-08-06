@@ -166,3 +166,54 @@ select{background:var(--surf2);border:1px solid var(--line);border-radius:8px;pa
   .ex .a{text-align:left}
   .ex .arr{display:none}
 }
+
+/* ── Échelle d'indices ───────────────────────────────────── */
+.hint{min-height:0}
+.hint:not(:empty){margin:.4rem 0 .2rem}
+.hint-lab{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin-bottom:.3rem}
+.hint-txt{font-family:var(--serif);font-size:1.6rem;color:var(--gold);letter-spacing:.06em;line-height:1.4}
+
+/* ── Compréhension orale ─────────────────────────────────── */
+.built{min-height:3rem;display:flex;flex-wrap:wrap;gap:.35rem;justify-content:center;align-items:center;
+       padding:.7rem;border:1px dashed var(--line);border-radius:10px;margin:.4rem 0}
+.bank{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;margin-top:.6rem}
+.chip{padding:.45rem .75rem;border:1px solid var(--line);border-radius:8px;background:var(--surf2);
+      font-family:var(--serif);font-size:1rem;transition:.12s}
+.chip:hover:not(:disabled){border-color:var(--acc);color:var(--gold)}
+.chip:disabled{opacity:.22;cursor:default}
+.chip.on{border-color:var(--acc);background:rgba(226,83,42,.14);color:var(--gold)}
+
+/* ── Mécaniques ──────────────────────────────────────────── */
+.killer{background:var(--surf2);border-left:2px solid var(--gold);border-radius:0 8px 8px 0;
+        padding:.8rem 1rem;margin:1rem 0;font-size:.9rem;line-height:1.7;color:var(--tx)}
+.drill{margin-top:1.2rem;padding-top:1.1rem;border-top:1px solid var(--line)}
+.drill-q{font-family:var(--serif);font-size:1.15rem;margin-bottom:.8rem;color:var(--tx)}
+.drill-q b{color:var(--acc);letter-spacing:.1em}
+.drill-n{display:inline-block;font-family:var(--sans);font-size:.7rem;color:var(--dim);
+         background:var(--surf2);padding:.15rem .45rem;border-radius:5px;margin-right:.6rem;vertical-align:middle}
+.drill-why{margin-top:.7rem;font-size:.86rem;color:var(--mut);line-height:1.6}
+.drill-done{display:flex;align-items:baseline;gap:.8rem;margin-bottom:.8rem}
+.drill-done b{font-family:var(--serif);font-size:1.8rem;color:var(--gold)}
+.drill-done span{font-size:.88rem;color:var(--mut)}
+.conj{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.4rem;margin-top:.8rem}
+.conj-cell{display:flex;flex-direction:column;align-items:flex-start;gap:.1rem;padding:.5rem .7rem;
+           background:var(--surf2);border:1px solid transparent;border-radius:8px;text-align:left;transition:.12s}
+.conj-cell:hover{border-color:var(--acc)}
+.conj-cell span{font-size:.7rem;color:var(--dim)}
+.conj-cell b{font-family:var(--serif);font-size:1.05rem;color:var(--tx);font-weight:500}
+
+/* ── Univers ─────────────────────────────────────────────
+   Ambiance de fond liée au thème de la phrase en cours.
+   Volontairement très basse en opacité : c'est un décor,
+   pas une illustration. Si ça attire l'œil, c'est raté. */
+#ambience{position:fixed;inset:0;z-index:-1;pointer-events:none;background:var(--bg)}
+#ambience i{
+  position:absolute;inset:0;background-size:cover;background-position:center;
+  opacity:0;transition:opacity 1.1s ease;filter:saturate(.85);
+}
+#ambience i.on{opacity:.17}
+#ambience::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 35%,transparent 0%,var(--bg) 78%),
+             linear-gradient(180deg,rgba(16,14,12,.72) 0%,rgba(16,14,12,.42) 40%,var(--bg) 100%);
+}

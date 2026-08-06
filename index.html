@@ -9,12 +9,15 @@
 </head>
 <body>
 
+<div id="ambience"><i></i><i></i></div>
+
 <header>
   <div class="brand">Se<b>ñ</b>orita</div>
   <nav>
     <button data-v="home" class="on">Aujourd'hui</button>
     <button data-v="session">Session</button>
     <button data-v="rules">Cheat&nbsp;code</button>
+    <button data-v="meca">Mécaniques</button>
     <button data-v="islands">Îlots</button>
     <button data-v="mine">Mes phrases</button>
     <button data-v="set">Réglages</button>
@@ -50,9 +53,10 @@
   <h3>Le principe</h3>
   <div class="card">
     <p style="color:var(--mut);font-size:.92rem">
-      Une session = <b style="color:var(--tx)">4 phases</b>, jamais la même chose deux fois de suite.
-      <b style="color:var(--gold)">Décodage</b> (tu débloques du vocabulaire par paquets de 200) →
-      <b style="color:var(--gold)">Rappel actif</b> (tu produis à voix haute avant de voir la réponse) →
+      Une session = <b style="color:var(--tx)">5 phases</b>, jamais la même chose deux fois de suite.
+      <b style="color:var(--gold)">Décodage</b> (du vocabulaire par paquets de 200) →
+      <b style="color:var(--gold)">Rappel actif</b> (tu produis avant de voir, avec une échelle d'indices si ça bloque) →
+      <b style="color:var(--gold)">Compréhension</b> (tu entends sans voir, et tu reconstruis) →
       <b style="color:var(--gold)">Shadowing</b> (tu colles à la voix native) →
       <b style="color:var(--gold)">Production libre</b> (60 s sans filet, le micro transcrit ce que tu as vraiment dit).
       Tu parles dès le jour 1. C'est non négociable — c'est là que tout se joue.
@@ -71,7 +75,7 @@
 
 <!-- ══════════ SESSION ══════════ -->
 <section class="view" id="v-session">
-  <div class="phase-bar" id="pbar"><div></div><div></div><div></div><div></div></div>
+  <div class="phase-bar" id="pbar"><div></div><div></div><div></div><div></div><div></div></div>
   <div class="phase-name" id="pname">—</div>
   <div class="phase-why" id="pwhy"></div>
   <div id="stage"></div>
@@ -86,6 +90,22 @@
     Coche une règle quand tu peux l'appliquer les yeux fermés — elle compte alors dans ta couverture.
   </p>
   <div id="rules-list"></div>
+</section>
+
+<!-- ══════════ MÉCANIQUES ══════════ -->
+<section class="view" id="v-meca">
+  <h2>Mécaniques</h2>
+  <p class="sub">
+    Pas des tableaux appris à vide. Chaque mécanique part d'un <em>piège francophone</em> précis,
+    l'explique en une phrase, puis te le fait rater volontairement sur cinq exercices —
+    parce qu'une règle qu'on n'a jamais ratée n'est pas encore apprise.
+  </p>
+  <div class="row" style="margin-bottom:1.4rem">
+    <button class="btn pri" id="meca-tab-p">Les 8 pièges</button>
+    <button class="btn" id="meca-tab-c">Conjugaison</button>
+  </div>
+  <div id="meca-list"></div>
+  <div id="conj-list" class="hidden"></div>
 </section>
 
 <!-- ══════════ ÎLOTS ══════════ -->
@@ -164,6 +184,7 @@
 
 <script src="js/corpus.js"></script>
 <script src="js/srs.js"></script>
+<script src="js/grammar.js"></script>
 <script src="js/speech.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/app.js"></script>
