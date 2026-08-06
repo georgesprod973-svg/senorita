@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Señorita — ton espagnol, en 16 minutes par jour</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇪🇸</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="brand">Se<b>ñ</b>orita</div>
+  <nav>
+    <button data-v="home" class="on">Aujourd'hui</button>
+    <button data-v="session">Session</button>
+    <button data-v="rules">Cheat&nbsp;code</button>
+    <button data-v="islands">Îlots</button>
+    <button data-v="mine">Mes phrases</button>
+    <button data-v="set">Réglages</button>
+  </nav>
+  <div class="hstat">
+    <div><b id="h-streak">0</b>jours</div>
+    <div><b id="h-cov">0%</b>couvert</div>
+  </div>
+</header>
+
+<main>
+
+<!-- ══════════ AUJOURD'HUI ══════════ -->
+<section class="view on" id="v-home">
+  <div class="hero">
+    <div class="big-n" id="cov-n">0%</div>
+    <div class="big-l">de l'espagnol parlé courant que tu couvres déjà</div>
+    <div class="bar"><i id="cov-bar" style="width:0%"></i></div>
+    <div class="tap-hint" id="cov-detail"></div>
+  </div>
+
+  <div class="row" style="justify-content:center;margin:1.8rem 0">
+    <button class="btn pri big" id="go">Lancer la session · 16 min</button>
+  </div>
+
+  <div class="grid3">
+    <div class="tile"><b id="t-due">0</b><span>phrases à réviser</span></div>
+    <div class="tile"><b id="t-mast">0</b><span>phrases acquises</span></div>
+    <div class="tile"><b id="t-words">0</b><span>mots actifs</span></div>
+    <div class="tile"><b id="t-spoken">0</b><span>min parlées au total</span></div>
+  </div>
+
+  <h3>Le principe</h3>
+  <div class="card">
+    <p style="color:var(--mut);font-size:.92rem">
+      Une session = <b style="color:var(--tx)">4 phases</b>, jamais la même chose deux fois de suite.
+      <b style="color:var(--gold)">Décodage</b> (tu débloques du vocabulaire par paquets de 200) →
+      <b style="color:var(--gold)">Rappel actif</b> (tu produis à voix haute avant de voir la réponse) →
+      <b style="color:var(--gold)">Shadowing</b> (tu colles à la voix native) →
+      <b style="color:var(--gold)">Production libre</b> (60 s sans filet, le micro transcrit ce que tu as vraiment dit).
+      Tu parles dès le jour 1. C'est non négociable — c'est là que tout se joue.
+    </p>
+  </div>
+
+  <h3>À lire une fois</h3>
+  <div class="card">
+    <p style="color:var(--mut);font-size:.92rem">
+      Ouvre <b style="color:var(--tx)">METHODE.md</b> à la racine du projet. C'est le mode d'emploi :
+      pourquoi ces quatre phases, ce qui marche vraiment dans l'acquisition d'une langue,
+      et le plan sur 90 jours. Dix minutes de lecture qui t'évitent six mois de méthode inefficace.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ SESSION ══════════ -->
+<section class="view" id="v-session">
+  <div class="phase-bar" id="pbar"><div></div><div></div><div></div><div></div></div>
+  <div class="phase-name" id="pname">—</div>
+  <div class="phase-why" id="pwhy"></div>
+  <div id="stage"></div>
+</section>
+
+<!-- ══════════ CHEAT CODE ══════════ -->
+<section class="view" id="v-rules">
+  <h2>Le cheat code francophone</h2>
+  <p class="sub">
+    Tu n'es pas à zéro. Le français et l'espagnol partagent environ 75 % de leur lexique,
+    et les correspondances sont <em>mécaniques</em>. Onze règles, quelques milliers de mots.
+    Coche une règle quand tu peux l'appliquer les yeux fermés — elle compte alors dans ta couverture.
+  </p>
+  <div id="rules-list"></div>
+</section>
+
+<!-- ══════════ ÎLOTS ══════════ -->
+<section class="view" id="v-islands">
+  <h2>Îlots de fluidité</h2>
+  <p class="sub">
+    Six monologues à toi, écrits une fois puis polis jusqu'à ce qu'ils sortent sans réfléchir.
+    C'est la triche la plus honnête qui existe : dès le premier mois, sur ces six sujets,
+    tu parles comme quelqu'un de bien plus avancé. Et ces sujets couvrent 80 % des vraies conversations.
+  </p>
+  <div class="warn-box">
+    Écris-les d'abord en français, puis traduis-les <em>toi-même</em> avec les phrases du corpus.
+    Ne colle pas une traduction automatique : ce que tu n'as pas construit, tu ne le retiens pas.
+  </div>
+  <div id="islands-list"></div>
+</section>
+
+<!-- ══════════ MES PHRASES ══════════ -->
+<section class="view" id="v-mine">
+  <h2>Sentence mining</h2>
+  <p class="sub">
+    La partie qui rend cette plateforme <em>tienne</em>. Tu regardes une série, tu tombes sur une
+    phrase que tu veux pouvoir dire : tu la mets ici. Elle entre dans la répétition espacée
+    exactement comme le reste. C'est comme ça qu'on sort du vocabulaire générique.
+  </p>
+  <div class="card">
+    <label class="field"><span>En espagnol</span><input id="m-es" placeholder="No me lo puedo creer."></label>
+    <label class="field"><span>En français</span><input id="m-fr" placeholder="J'arrive pas à y croire."></label>
+    <label class="field"><span>Note (facultatif) — d'où ça vient, pourquoi tu la gardes</span><input id="m-note" placeholder="Vu dans La Casa de Papel"></label>
+    <button class="btn pri" id="m-add">Ajouter au deck</button>
+  </div>
+  <h3>Ton deck personnel <span id="m-count"></span></h3>
+  <div id="mined-list"></div>
+</section>
+
+<!-- ══════════ RÉGLAGES ══════════ -->
+<section class="view" id="v-set">
+  <h2>Réglages</h2>
+  <p class="sub">Cale la machine sur ton rythme réel, pas sur celui que tu voudrais avoir.</p>
+  <div class="card">
+    <label class="field"><span>Voix espagnole</span><select id="s-voice"></select></label>
+    <label class="field"><span>Vitesse de la voix — <b id="s-rate-v">0.9</b>×</span>
+      <input type="range" id="s-rate" min="0.5" max="1.2" step="0.05" style="width:100%;accent-color:var(--acc)"></label>
+    <label class="field"><span>Nouvelles phrases par jour — <b id="s-new-v">8</b></span>
+      <input type="range" id="s-new" min="3" max="25" step="1" style="width:100%;accent-color:var(--acc)"></label>
+    <label class="field"><span>Durée de session — <b id="s-min-v">16</b> min</span>
+      <input type="range" id="s-min" min="8" max="45" step="1" style="width:100%;accent-color:var(--acc)"></label>
+  </div>
+  <h3>Données</h3>
+  <div class="card">
+    <p style="color:var(--mut);font-size:.88rem;margin-bottom:.9rem">
+      Tout est stocké dans ton navigateur, en local. Rien ne part nulle part. Pense à exporter de temps en temps.
+    </p>
+    <div class="row">
+      <button class="btn" id="s-export">Exporter (JSON)</button>
+      <button class="btn" id="s-import">Importer</button>
+      <button class="btn" id="s-reset" style="color:var(--bad)">Tout effacer</button>
+    </div>
+    <input type="file" id="s-file" accept="application/json" class="hidden">
+  </div>
+  <h3>Diagnostic</h3>
+  <div class="card">
+    <p id="diag" style="color:var(--mut);font-size:.86rem"></p>
+    <button class="btn" id="s-mic-retry" style="margin-top:.9rem">Retester le micro</button>
+  </div>
+</section>
+
+</main>
+
+<script src="js/corpus.js"></script>
+<script src="js/srs.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
