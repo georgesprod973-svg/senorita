@@ -511,6 +511,7 @@ const Session = {
     e.min += mins; e.spoken = (e.spoken || 0) + this.spoke;
     Store.save();
     snapshot();
+    autoSync();
 
     $$("#pbar div").forEach(d => d.className = "past");
     $("#pname").textContent = "Session terminée";
@@ -671,6 +672,104 @@ $("#meca-tab-c").onclick = () => {
 };
 
 
+
+/* ── Synchronisation ─────────────────────────────────────── */
+function renderSync() {
+  const box = $("#sync-box"); if (!box) return;
+  const code = Sync.code();
+  const at = Store.data.syncAt;
+  box.innerHTML = "";
+
+  if (!code) {
+    box.innerHTML = `<p style="color:var(--mut);font-size:.9rem;margin-bottom:1rem">
+      Un code, pas un compte. Génère-le ici, recopie-le sur ton téléphone, et les deux
+      appareils partagent la même progression. Aucun e-mail, aucun mot de passe.
+      <br><br><span style="color:var(--dim);font-size:.85rem">Le code est ta clé : qui l'a, a ta
+      progression. Vu ce qu'elle contient — des phrases d'espagnol et des dates de révision —
+      c'est un compromis raisonnable, mais ne le publie pas.</span></p>`;
+    const row = el("div", "row");
+    const gen = el("button", "btn pri", "Générer mon code");
+    gen.onclick = async () => {
+      Store.data.syncCode = Sync.newCode(); Store.save();
+      renderSync();
+      try { await Sync.push(); renderSync(); } catch (e) { syncErr(e); }
+    };
+    const join = el("button", "btn", "J'ai déjà un code");
+    join.onclick = () => {
+      box.innerHTML = "";
+      const f = el("label", "field", `<span>Colle le code de ton autre appareil</span>`);
+      const inp = el("input"); inp.placeholder = "xxxxxx-xxxxxx-xxxxxx-xxxxxx";
+      f.appendChild(inp); box.appendChild(f);
+      const ok = el("button", "btn pri", "Récupérer et fusionner");
+      ok.onclick = async () => {
+        const c = Sync.clean(inp.value);
+        if (c.length < 16) return alert("Code trop court — recopie-le en entier.");
+        ok.disabled = true; ok.textContent = "Récupération…";
+        try {
+          const row = await Sync.peek(c);
+          if (!row) { alert("Aucune progression trouvée pour ce code. Vérifie la saisie."); ok.disabled = false; ok.textContent = "Récupérer et fusionner"; return; }
+          Store.data.syncCode = c;
+          const st = Sync.merge(row.data);
+          await Sync.push();
+          alert(`Fusionné : ${st.cartes} phrases, ${st.jours} jours d'historique, ${st.minées} phrases perso.`);
+          renderProg();
+        } catch (e) { syncErr(e); ok.disabled = false; ok.textContent = "Récupérer et fusionner"; }
+      };
+      box.appendChild(ok);
+    };
+    row.append(gen, join);
+    box.appendChild(row);
+    return;
+  }
+
+  box.innerHTML = `<div class="sync-code">${code}</div>
+    <p style="color:var(--dim);font-size:.84rem;margin:.6rem 0 1rem">
+      ${at ? `Dernière synchro ${new Date(at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}`
+           : "Jamais synchronisé"} ·
+      recopie ce code dans Progression → « J'ai déjà un code » sur ton autre appareil.
+    </p>`;
+  const row = el("div", "row");
+
+  const now = el("button", "btn pri", "Synchroniser maintenant");
+  now.onclick = async () => {
+    now.disabled = true; now.textContent = "Synchro…";
+    try {
+      const st = await Sync.full();
+      now.textContent = st ? `Fusionné · ${st.cartes} phrases` : "Envoyé";
+      setTimeout(() => renderProg(), 1200);
+    } catch (e) { syncErr(e); now.disabled = false; now.textContent = "Synchroniser maintenant"; }
+  };
+
+  const copy = el("button", "btn", "Copier le code");
+  copy.onclick = () => {
+    navigator.clipboard.writeText(code).then(() => { copy.textContent = "Copié ✓"; setTimeout(() => copy.textContent = "Copier le code", 1800); });
+  };
+
+  const off = el("button", "btn", "Délier cet appareil");
+  off.style.color = "var(--bad)";
+  off.onclick = () => {
+    if (!confirm("Cet appareil cessera de synchroniser. Ta progression locale est conservée, et la copie en ligne aussi. Continuer ?")) return;
+    delete Store.data.syncCode; delete Store.data.syncAt; Store.save(); renderSync();
+  };
+
+  row.append(now, copy, off);
+  box.appendChild(row);
+}
+
+function syncErr(e) {
+  const m = String(e.message || e);
+  alert(/Failed to fetch|NetworkError/i.test(m)
+    ? "Pas de connexion — la synchro a besoin du réseau. Ta progression locale est intacte."
+    : "Synchro impossible : " + m);
+}
+
+/* Synchro automatique en fin de session : c'est le moment où il y a
+   quelque chose de neuf à sauver, et où une perte ferait le plus mal. */
+async function autoSync() {
+  if (!Sync.code() || Sync.busy) return;
+  try { await Sync.full(); } catch (e) { /* silencieux : jamais bloquer une session */ }
+}
+
 /* ── Progression ─────────────────────────────────────────
    Ce qui manquait : l'historique. Le journal notait les minutes et les
    révisions, mais pas la couverture ni les acquis. Impossible de tracer
@@ -688,6 +787,7 @@ const DAYMS = 86400000;
 const iso = d => new Date(d).toISOString().slice(0, 10);
 
 function renderProg() {
+  renderSync();
   const log = Store.data.log || [];
   const byDay = {}; log.forEach(e => byDay[e.d] = e);
 

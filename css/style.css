@@ -225,3 +225,10 @@ select{background:var(--surf2);border:1px solid var(--line);border-radius:8px;pa
 .h0{background:var(--surf2)} .h1{background:#4a3320} .h2{background:#8a4a24}
 .h3{background:#c25a2c} .h4{background:var(--gold)}
 #heat-leg{margin-top:.7rem}
+
+/* ── Synchro ─────────────────────────────────────────────── */
+.sync-code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.15rem;letter-spacing:.06em;
+  color:var(--gold);background:var(--bg);border:1px solid var(--line);border-radius:9px;
+  padding:.8rem 1rem;text-align:center;user-select:all;word-break:break-all;
+}
