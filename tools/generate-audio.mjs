@@ -175,6 +175,25 @@ async function elevenSpanishVoices() {
   return { picked: picked.map(v => ({ id: v.voice_id, name: v.name, gender: gender(v) || "?", zone: zone(v) })), all: voices, total: es.length };
 }
 
+
+/* ---- Contrôle de quota avant de lancer quoi que ce soit ----
+   Rien de pire qu'une génération interrompue à la phrase 180 : le manifeste
+   est incomplet, l'app parle moitié natif moitié Mónica. On vérifie d'abord. */
+async function elevenQuota() {
+  try {
+    const r = await fetch(`${ELEVEN}/v1/user/subscription`,
+      { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return {
+      used: d.character_count ?? 0,
+      limit: d.character_limit ?? 0,
+      left: Math.max(0, (d.character_limit ?? 0) - (d.character_count ?? 0)),
+      tier: d.tier || "?"
+    };
+  } catch (e) { return null; }
+}
+
 /* ---- génération ---- */
 const gen = providers[PROVIDER];
 if (!gen) { console.error(`✗ Fournisseur inconnu : ${PROVIDER}. Choix : ${Object.keys(providers).join(", ")}`); process.exit(1); }
@@ -219,6 +238,26 @@ const chars = todo.reduce((n, t) => n + t.length, 0);
 console.log(`\n  Fournisseur : ${PROVIDER}`);
 console.log(`  Phrases     : ${todo.length}  (${chars.toLocaleString("fr")} caractères)`);
 console.log(`  Déjà faites : ${Object.keys(manifest).length}\n`);
+
+if (PROVIDER === "elevenlabs") {
+  const q = await elevenQuota();
+  if (q) {
+    const need = chars * VOICES.length;
+    console.log(`  Quota       : ${q.left.toLocaleString("fr")} caractères restants sur ${q.limit.toLocaleString("fr")} (offre « ${q.tier} »)`);
+    console.log(`  Nécessaire  : ${need.toLocaleString("fr")} caractères (${chars.toLocaleString("fr")} × ${VOICES.length} locuteur(s))\n`);
+    if (need > q.left) {
+      const fits = Math.floor(q.left / chars);
+      console.error(`  ✗ Quota insuffisant : il manque ${(need - q.left).toLocaleString("fr")} caractères.\n`);
+      if (fits >= 1) {
+        console.error(`    → Avec ${fits} locuteur(s) ça passe :`);
+        console.error(`      node tools/generate-audio.mjs --provider elevenlabs --speakers ${fits}\n`);
+      }
+      console.error(`    → Ou passe à une offre supérieure, ou attends la remise à zéro mensuelle.`);
+      console.error(`    → Ou force malgré tout : --ignore-quota (la génération s'arrêtera net à l'épuisement).\n`);
+      if (!flag("ignore-quota")) process.exit(1);
+    }
+  }
+}
 
 let ok = 0, skip = 0, fail = 0;
 const CONC = 4;
