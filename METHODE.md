@@ -186,20 +186,28 @@ c'est un A2 **qui parle**, ce qui est rare.
 
 ## 8. Comment lancer la plateforme
 
-Depuis le dossier du projet :
+**En ligne, depuis n'importe où (recommandé) :** <https://senorita-dusky.vercel.app>
+
+C'est de l'HTTPS, donc le micro fonctionne — y compris sur téléphone. Ajoute la page à ton écran
+d'accueil iOS (Partager → Sur l'écran d'accueil) et tu as une icône comme une vraie app.
+
+**En local**, si tu préfères travailler hors ligne ou modifier le code :
 
 ```bash
 cd ~/Documents/séniorita && python3 -m http.server 8777
 ```
 
-Puis ouvre <http://localhost:8777> dans Chrome ou Safari.
+Puis <http://localhost:8777>. Le fichier `démarrer.command` fait les deux en un double-clic.
 
-Le micro et la synthèse vocale exigent un vrai serveur (même local) : ouvrir `index.html` en
-double-cliquant peut désactiver la reconnaissance vocale selon le navigateur. Le fichier
-`démarrer.command` fait les deux en un double-clic.
+Dans les deux cas : **passe par une URL `http://localhost` ou `https://`**. Ouvrir `index.html` en
+double-cliquant (`file://`) désactive la reconnaissance vocale sur la plupart des navigateurs.
+Chrome et Safari gèrent le micro ; Firefox non.
 
-Tout est stocké en local dans ton navigateur. Rien ne part sur un serveur, il n'y a pas de compte.
-Pense à exporter ton JSON de temps en temps depuis *Réglages*.
+⚠️ **La progression est stockée dans le navigateur qui l'a créée.** Le site en ligne et la version
+locale ont chacun leur propre mémoire, et elles ne communiquent pas. Choisis-en un et tiens-t'y —
+ou fais passer ta progression de l'un à l'autre avec Exporter / Importer dans *Réglages*.
+
+Rien ne part sur un serveur, il n'y a pas de compte. Pense à exporter ton JSON de temps en temps.
 
 ---
 
