@@ -79,6 +79,7 @@ function show(v) {
   if (v === "home") renderHome();
   if (v === "rules") renderRules();
   if (v === "meca") renderMeca();
+  if (v === "prog") renderProg();
   if (v === "islands") renderIslands();
   if (v === "mine") renderMined();
   if (v === "set") renderSettings();
@@ -509,6 +510,7 @@ const Session = {
     const e = SRS.today();
     e.min += mins; e.spoken = (e.spoken || 0) + this.spoke;
     Store.save();
+    snapshot();
 
     $$("#pbar div").forEach(d => d.className = "past");
     $("#pname").textContent = "Session terminée";
@@ -667,6 +669,132 @@ $("#meca-tab-c").onclick = () => {
   $("#conj-list").classList.remove("hidden"); $("#meca-list").classList.add("hidden");
   renderConj();
 };
+
+
+/* ── Progression ─────────────────────────────────────────
+   Ce qui manquait : l'historique. Le journal notait les minutes et les
+   révisions, mais pas la couverture ni les acquis. Impossible de tracer
+   une courbe rétroactivement — alors on prend un instantané chaque jour. */
+
+function snapshot() {
+  const e = SRS.today();
+  e.cov = Math.round(SRS.coverage() * 10) / 10;
+  e.mast = SRS.mastered();
+  e.words = SRS.knownWords().size;
+  Store.save();
+}
+
+const DAYMS = 86400000;
+const iso = d => new Date(d).toISOString().slice(0, 10);
+
+function renderProg() {
+  const log = Store.data.log || [];
+  const byDay = {}; log.forEach(e => byDay[e.d] = e);
+
+  /* ---- rappel de sauvegarde ---- */
+  const last = Store.data.lastExport;
+  const days = last ? Math.floor((Date.now() - last) / DAYMS) : null;
+  const bk = $("#prog-backup");
+  const risky = last === undefined || days > 10;
+  bk.innerHTML = `<div class="warn-box" style="${risky ? "" : "background:rgba(95,168,96,.09);border-color:#2c4a2d;color:var(--ok)"}">
+    <b>${last ? `Dernière sauvegarde il y a ${days} jour${days > 1 ? "s" : ""}` : "Jamais sauvegardé"}</b><br>
+    <span style="color:var(--mut)">Ta progression vit dans le stockage local de <em>ce</em> navigateur. Elle survit à un rechargement et à un redémarrage — mais pas à un « effacer les données de navigation ».
+    ${/^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+      ? "<br><b style=\"color:var(--warn)\">Sur Safari en particulier :</b> le navigateur efface ce stockage après 7 jours sans visite du site. Si tu pars deux semaines, exporte avant."
+      : ""}</span></div>`;
+  const exp = el("button", "btn" + (risky ? " pri" : ""), "Exporter maintenant");
+  exp.onclick = () => { $("#s-export").click(); Store.data.lastExport = Date.now(); Store.save(); renderProg(); };
+  bk.appendChild(exp);
+
+  /* ---- carte d'assiduité ---- */
+  const heat = $("#heat"); heat.innerHTML = "";
+  const today = new Date(iso(Date.now()));
+  const start = new Date(today - 83 * DAYMS);
+  const cells = [];
+  for (let d = new Date(start); d <= today; d = new Date(+d + DAYMS)) {
+    const k = iso(d), e = byDay[k];
+    const m = e ? e.min : 0;
+    const lvl = m === 0 ? 0 : m < 8 ? 1 : m < 16 ? 2 : m < 30 ? 3 : 4;
+    cells.push(`<i class="h${lvl}" title="${k} — ${m} min, ${e ? e.reviews : 0} révisions"></i>`);
+  }
+  heat.innerHTML = cells.join("");
+  const actifs = log.filter(e => e.reviews > 0).length;
+  $("#heat-leg").innerHTML = `<span class="scoreline">${actifs} jour${actifs > 1 ? "s" : ""} d'entraînement ·
+    série actuelle ${SRS.streak()} · moins <i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i> plus</span>`;
+
+  /* ---- courbe de couverture ---- */
+  const pts = log.filter(e => typeof e.cov === "number").sort((a, b) => a.d.localeCompare(b.d));
+  const cv = $("#curve");
+  if (pts.length < 2) {
+    cv.innerHTML = `<span class="scoreline">La courbe apparaît après deux jours de session. Un instantané est pris à la fin de chaque session — couverture, phrases acquises, mots actifs.</span>`;
+  } else {
+    const W = 640, H = 150, max = Math.max(10, ...pts.map(p => p.cov));
+    const x = i => 20 + i * (W - 40) / (pts.length - 1);
+    const y = v => H - 24 - (v / max) * (H - 48);
+    const line = pts.map((p, i) => `${x(i)},${y(p.cov)}`).join(" ");
+    cv.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--acc)" stop-opacity=".35"/>
+        <stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/></linearGradient></defs>
+      <polygon points="${x(0)},${H - 24} ${line} ${x(pts.length - 1)},${H - 24}" fill="url(#g)"/>
+      <polyline points="${line}" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linejoin="round"/>
+      ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.cov)}" r="2.5" fill="var(--gold)"/>`).join("")}
+      <text x="20" y="${H - 6}" fill="var(--dim)" font-size="10">${pts[0].d}</text>
+      <text x="${W - 20}" y="${H - 6}" fill="var(--dim)" font-size="10" text-anchor="end">${pts[pts.length - 1].d}</text>
+      <text x="20" y="14" fill="var(--gold)" font-size="12">${pts[pts.length - 1].cov}% de couverture</text>
+    </svg>`;
+  }
+
+  /* ---- totaux ---- */
+  const tot = k => log.reduce((n, e) => n + (e[k] || 0), 0);
+  const best = (() => { // plus longue série
+    const set = new Set(log.filter(e => e.reviews > 0).map(e => e.d));
+    let b = 0, cur = 0;
+    for (let d = new Date(Store.data.created); d <= today; d = new Date(+d + DAYMS)) {
+      if (set.has(iso(d))) { cur++; b = Math.max(b, cur); } else cur = 0;
+    }
+    return b;
+  })();
+  $("#prog-tiles").innerHTML = [
+    [actifs, "jours d'entraînement"],
+    [Math.round(tot("min")) + " min", "de pratique cumulée"],
+    [Math.round(tot("spoken") / 60) + " min", "de parole produite"],
+    [tot("reviews"), "révisions au total"],
+    [SRS.mastered(), "phrases acquises"],
+    [best, "meilleure série"]
+  ].map(([v, l]) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  /* ---- les phrases qui résistent ---- */
+  const byId = {}; SRS.all().forEach(c => byId[c.id] = c);
+  const hard = Object.entries(Store.data.cards)
+    .filter(([id, st]) => st.lapses >= 2 && byId[id])
+    .sort((a, b) => b[1].lapses - a[1].lapses).slice(0, 8);
+  const hw = $("#hard");
+  hw.innerHTML = hard.length ? "" : `<span class="scoreline">Rien ne résiste encore. Reviens après quelques sessions — c'est ici que tu verras où porter l'effort.</span>`;
+  hard.forEach(([id, st]) => {
+    const c = byId[id];
+    const row = el("div", "mined-row",
+      `<span class="es">${c.es}</span><span class="fr">${c.fr}</span>
+       <span style="flex:0 0 4.5rem;font-size:.76rem;color:var(--bad)">${st.lapses} oublis</span>`);
+    const p = el("button", null, "🔊"); p.onclick = () => Sound.play(c.es);
+    row.appendChild(p);
+    hw.appendChild(row);
+  });
+
+  /* ---- mécaniques ---- */
+  const mw = $("#prog-meca"); mw.innerHTML = "";
+  const done = Store.data.meca || {};
+  if (!Object.keys(done).length) {
+    mw.innerHTML = `<span class="scoreline">Aucune mécanique travaillée. L'onglet Mécaniques t'attend — c'est là que se règlent les erreurs qui reviennent.</span>`;
+  } else MECANIQUES.forEach(m => {
+    const r = done[m.id];
+    const pct = r ? Math.round(r.score / r.total * 100) : 0;
+    mw.appendChild(el("div", "mined-row",
+      `<span class="es" style="flex:2">${m.title}</span>
+       <span style="flex:0 0 8rem;color:${!r ? "var(--dim)" : pct === 100 ? "var(--ok)" : pct >= 70 ? "var(--warn)" : "var(--bad)"};font-size:.85rem">
+       ${r ? `${r.score}/${r.total}` : "pas encore fait"}</span>`));
+  });
+}
 
 /* ── Îlots ─────────────────────────────────────────────── */
 function renderIslands() {
@@ -841,6 +969,7 @@ $("#s-export").onclick = () => {
   a.href = URL.createObjectURL(b);
   a.download = `senorita-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
+  Store.data.lastExport = Date.now(); Store.save();
 };
 $("#s-import").onclick = () => $("#s-file").click();
 $("#s-file").onchange = e => {
