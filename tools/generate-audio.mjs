@@ -29,6 +29,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "audio");
+// surchargeable pour les tests hors ligne
+const ELEVEN = process.env.ELEVENLABS_BASE || "https://api.elevenlabs.io";
 
 /* ---- args ---- */
 const argv = process.argv.slice(2);
@@ -85,7 +87,7 @@ const providers = {
 
   async elevenlabs(text, voice) {
     const key = need("ELEVENLABS_API_KEY");
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
+    const r = await fetch(`${ELEVEN}/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
       method: "POST",
       headers: { "xi-api-key": key, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -122,17 +124,92 @@ function need(v) {
   return process.env[v];
 }
 
+
+/* ---- ElevenLabs : trouver les voix réellement hispanophones du compte ----
+   Une voix anglaise qui « parle espagnol » produit un accent qui n'existe pas.
+   Pour apprendre, c'est pire qu'une voix moyenne mais native. */
+async function elevenSpanishVoices() {
+  const r = await fetch(`${ELEVEN}/v1/voices`,
+    { headers: { "xi-api-key": need("ELEVENLABS_API_KEY") } });
+  if (!r.ok) throw new Error(`liste des voix : ${r.status} ${(await r.text()).slice(0, 160)}`);
+  const { voices } = await r.json();
+
+  const isES = v => {
+    const hay = JSON.stringify(v.labels || {}) + " " + (v.description || "") + " " +
+                JSON.stringify(v.verified_languages || []) + " " + (v.name || "");
+    return /\b(spanish|español|espanol|castilian|castellano|latin ?american|mexican|colombian|argentin)\b/i.test(hay);
+  };
+  const gender = v => (v.labels?.gender || "").toLowerCase();
+
+  const es = voices.filter(isES);
+  if (!es.length) return { picked: [], all: voices, none: true };
+
+  // Accent : Espagne ou Amérique latine. Les deux comptent — tu veux
+  // voyager ET bosser, et le seseo change complètement l'écoute.
+  const zone = v => {
+    const hay = JSON.stringify(v.labels || {}) + " " + (v.description || "");
+    if (/castilian|castellano|spain|españa|espana|europe/i.test(hay)) return "ES";
+    if (/latin|mexican|colombian|argentin|chilean|peruvian|america/i.test(hay)) return "LA";
+    return "?";
+  };
+
+  /* Sélection équilibrée : on remplit les cases (genre × zone) une par une,
+     en variant le genre à chaque tour. Apprendre sur une seule voix, c'est
+     apprendre cette voix ; sur un seul genre, c'est rater la moitié des
+     hauteurs de voix qu'on entendra en vrai. */
+  const want = Math.max(1, Math.min(6, +arg("speakers", 2)));
+  const picked = [];
+  const used = new Set();
+  const slots = [];
+  for (let i = 0; i < want; i++) {
+    slots.push({ g: i % 2 === 0 ? "f" : "m", z: i % 4 < 2 ? "ES" : "LA" });
+  }
+  for (const slot of slots) {
+    let v = es.find(x => !used.has(x.voice_id) && gender(x).startsWith(slot.g) && zone(x) === slot.z)
+         || es.find(x => !used.has(x.voice_id) && gender(x).startsWith(slot.g))
+         || es.find(x => !used.has(x.voice_id));
+    if (!v) break;
+    used.add(v.voice_id); picked.push(v);
+  }
+
+  return { picked: picked.map(v => ({ id: v.voice_id, name: v.name, gender: gender(v) || "?", zone: zone(v) })), all: voices, total: es.length };
+}
+
 /* ---- génération ---- */
 const gen = providers[PROVIDER];
 if (!gen) { console.error(`✗ Fournisseur inconnu : ${PROVIDER}. Choix : ${Object.keys(providers).join(", ")}`); process.exit(1); }
 
-const VOICES = (arg("voice", DEFAULT_VOICE[PROVIDER] || "")).split(",").map(v => v.trim()).filter(Boolean);
-if (!VOICES.length) {
-  console.error(`\n✗ --voice requis pour ${PROVIDER}.`);
-  if (PROVIDER === "elevenlabs") console.error(`  Lister tes voix espagnoles :\n  curl -s -H "xi-api-key: $ELEVENLABS_API_KEY" https://api.elevenlabs.io/v1/voices | python3 -m json.tool | grep -A2 -i "name\\|labels"\n`);
-  process.exit(1);
+let VOICES = (arg("voice", "") || DEFAULT_VOICE[PROVIDER] || "").split(",").map(v => v.trim()).filter(Boolean);
+let VOICE_LABELS = VOICES.slice();
+
+if (PROVIDER === "elevenlabs" && !arg("voice", "")) {
+  const { picked, all, none } = await elevenSpanishVoices();
+  if (none) {
+    console.error(`
+  ✗ Aucune voix hispanophone dans ton compte ElevenLabs.
+
+    Les ${all.length} voix présentes sont anglophones : elles parleraient espagnol
+    avec un accent qui n'existe pas. Pour apprendre, c'est contre-productif.
+
+    → Va sur elevenlabs.io → Voice Library → filtre « Spanish », ajoute une
+      voix es-ES et une es-MX à ton compte, puis relance cette commande.
+
+    Ou force une voix quand même : --voice <voice_id>
+`);
+    process.exit(1);
+  }
+  VOICES = picked.map(v => v.id);
+  VOICE_LABELS = picked.map(v => `${v.name} · ${v.gender} · ${v.zone === "LA" ? "Amérique latine" : v.zone === "ES" ? "Espagne" : "accent ?"}`);
 }
-console.log(`  Locuteurs   : ${VOICES.join(", ")}`);
+
+if (flag("list")) {
+  console.log(`\n  Voix retenues : ${VOICE_LABELS.join(", ")}`);
+  console.log(`  IDs           : ${VOICES.join(",")}\n`);
+  process.exit(0);
+}
+
+if (!VOICES.length) { console.error(`\n✗ --voice requis pour ${PROVIDER}.\n`); process.exit(1); }
+console.log(`  Locuteurs   : ${VOICE_LABELS.join(", ")}`);
 
 mkdirSync(OUT, { recursive: true });
 const manifestPath = join(OUT, "manifest.json");
@@ -186,6 +263,7 @@ const bytes = readdirSync(OUT).filter(f => f.endsWith(".mp3"))
   .reduce((n, f) => n + readFileSync(join(OUT, f)).length, 0);
 
 console.log(`\n\n  Terminé — ${ok} générées, ${skip} déjà présentes, ${fail} en échec.`);
-console.log(`  ${Object.keys(manifest).length} fichiers, ${(bytes / 1048576).toFixed(1)} Mo dans audio/`);
+const nFiles = readdirSync(OUT).filter(f => f.endsWith(".mp3")).length;
+console.log(`  ${Object.keys(manifest).length} phrases × ${VOICES.length} locuteur(s) = ${nFiles} fichiers, ${(bytes / 1048576).toFixed(1)} Mo dans audio/`);
 console.log(`\n  Recharge l'app : elle détecte audio/manifest.json toute seule.`);
 console.log(`  Puis : vercel deploy --prod --yes\n`);

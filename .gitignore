@@ -4,3 +4,6 @@
 
 # extraits de comparaison : locaux, non versionnés
 compare/
+
+# audio généré : local + déployé, mais pas redistribué dans le dépôt public
+audio/
