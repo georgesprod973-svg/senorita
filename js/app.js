@@ -81,6 +81,7 @@ function show(v, fromHash) {
   if (v === "home") renderHome();
   if (v === "rules") renderRules();
   if (v === "machine") renderMachine();
+  if (v === "escenas") renderEscenas();
   if (v === "meca") renderMeca();
   if (v === "prog") renderProg();
   if (v === "islands") renderIslands();
@@ -115,6 +116,7 @@ function renderHome() {
 }
 $("#go").onclick = () => { show("session"); Session.start(); };
 $("#go-machine").onclick = () => show("machine");
+$("#go-escenas").onclick = () => show("escenas");
 
 /* ============================================================
    SESSION — 4 phases
@@ -811,6 +813,171 @@ function runChaine(ch) {
   };
 
   draw();
+  window.scrollTo(0, 0);
+}
+
+
+/* ── Escenas ─────────────────────────────────────────────
+   Le seul mode où quelqu'un te répond. Trois partis pris :
+   l'audio d'abord (le texte se demande), pas de bonne réponse
+   mais des conséquences, et des répliques données plutôt que
+   produites — choisir puis DIRE est à ta portée aujourd'hui,
+   produire ex nihilo dans l'urgence ne l'est pas encore. */
+
+function renderEscenas() {
+  $("#esc-run").classList.add("hidden");
+  const w = $("#esc-home"); w.classList.remove("hidden"); w.innerHTML = "";
+
+  w.appendChild(el("div", null, `<h2>Escenas</h2>
+    <p class="sub">Huit modes dans cette app, et pas un seul où quelqu'un te répond. Ici si.
+    Une situation réelle, un objectif réel, et un interlocuteur qui n'attend pas.
+    <b style="color:var(--tx)">Tu entends d'abord, tu lis seulement si tu le demandes</b> — dans la vraie vie
+    il n'y a pas de sous-titres. Il n'y a pas de bonne réponse : il y a des conséquences.</p>`));
+
+  ESCENAS.forEach(sc => {
+    const st = (Store.data.escenas || {})[sc.id];
+    const card = el("div", "esc-card");
+    card.innerHTML = `<h4>${sc.titre}</h4>
+      <div class="lieu">${sc.lieu} · ${sc.duree}</div>
+      <p>${sc.brief}</p>
+      ${st ? `<div class="scoreline" style="margin-top:.7rem">Jouée ${st.fois} fois · dernière fin : <b style="color:var(--gold)">${st.fin}</b></div>` : ""}`;
+    const b = el("button", "btn pri", st ? "Rejouer" : "Entrer dans la scène");
+    b.style.marginTop = "1rem";
+    b.onclick = () => runEscena(sc);
+    card.appendChild(b);
+    w.appendChild(card);
+  });
+
+  w.appendChild(el("div", "warn-box", `<b>Comment jouer</b><br>
+    <span style="color:var(--mut)">Écoute la réplique <b>avant</b> d'afficher le texte. Tu ne comprendras pas tout —
+    c'est normal et c'est l'exercice. Puis choisis ta réponse, et <b>dis-la à voix haute</b> avant de valider.
+    Rejoue la même scène en prenant d'autres chemins : c'est là qu'elle devient un entraînement et pas une lecture.</span>`));
+}
+
+function runEscena(sc) {
+  $("#esc-home").classList.add("hidden");
+  const w = $("#esc-run"); w.classList.remove("hidden");
+  setAmbience(sc.ambiance === "bar" ? "resto" : sc.ambiance === "noche" ? "futur" : "survie");
+
+  const fil = [];            // le fil de la conversation, pour le débrief
+  let tours = 0, aides = 0;
+  const t0 = Date.now();
+
+  const draw = id => {
+    const n = sc.noeuds[id];
+    if (!n) return fin(id);
+    tours++;
+    w.innerHTML = "";
+
+    const box = el("div", "esc-scene");
+    box.appendChild(el("div", "esc-qui", `${n.qui} · tour ${tours}`));
+
+    const onde = el("div", "esc-onde live", "<i></i><i></i><i></i><i></i><i></i><i></i><i></i>");
+    box.appendChild(onde);
+
+    const dit = el("div", "esc-dit hidden", n.dit);
+    const tr = el("div", "esc-tr hidden", n.fr);
+    const astuce = n.astuce ? el("div", "esc-astuce hidden", n.astuce) : null;
+    box.append(dit, tr); if (astuce) box.appendChild(astuce);
+
+    const dire = () => { onde.classList.add("live"); Sound.play(n.dit, null, () => onde.classList.remove("live")); };
+    dire();
+
+    const outils = el("div", "row"); outils.style.justifyContent = "center";
+    const re = el("button", "btn", "🔊 Réécouter");
+    re.onclick = dire;
+    const lent = el("button", "btn", "🐢 Lentement");
+    lent.onclick = () => { onde.classList.add("live"); Sound.play(n.dit, 0.6, () => onde.classList.remove("live")); };
+    const voir = el("button", "btn", "Voir le texte");
+    voir.onclick = () => {
+      if (dit.classList.contains("hidden")) { dit.classList.remove("hidden"); aides++; voir.textContent = "Voir la traduction"; }
+      else if (tr.classList.contains("hidden")) { tr.classList.remove("hidden"); if (astuce) astuce.classList.remove("hidden"); aides++; voir.disabled = true; }
+    };
+    outils.append(re, lent, voir);
+    box.appendChild(outils);
+
+    const reps = el("div"); reps.style.marginTop = "1.4rem";
+    box.appendChild(reps);
+
+    n.rep.forEach(r => {
+      const b = el("button", "esc-rep", `<b>${r.es}</b><span>${r.fr}</span>`);
+      b.onclick = () => {
+        reps.querySelectorAll("button").forEach(x => x.disabled = true);
+        Sound.play(r.es);
+        fil.push({ qui: n.qui, t: n.dit }, { qui: "Toi", t: r.es, moi: true });
+        if (r.effet) box.appendChild(el("div", "esc-effet " + (r.ton || "neutre"), r.effet));
+        const suite = el("button", "btn pri big", "Continuer →");
+        suite.style.marginTop = ".8rem";
+        suite.onclick = () => draw(r.va);
+        box.appendChild(suite);
+        suite.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
+      reps.appendChild(b);
+    });
+
+    w.appendChild(box);
+    const quit = el("button", "btn", "← Quitter la scène");
+    quit.style.marginTop = "1rem";
+    quit.onclick = () => renderEscenas();
+    w.appendChild(quit);
+  };
+
+  const fin = key => {
+    const f = sc.fins[key];
+    if (!f) return renderEscenas();
+    fil.push({ qui: "—", t: f.dit });
+
+    const mins = Math.max(1, Math.round((Date.now() - t0) / 60000));
+    Store.data.escenas = Store.data.escenas || {};
+    const prev = Store.data.escenas[sc.id];
+    Store.data.escenas[sc.id] = { fois: (prev?.fois || 0) + 1, fin: f.titre, at: Date.now() };
+    const e = SRS.today(); e.min += mins; e.reviews += tours; Store.save();
+
+    w.innerHTML = "";
+    const box = el("div", "mach-final");
+    box.innerHTML = `<div class="mach-step">${sc.titre} · ${f.titre}</div>
+      <div class="big">${f.dit}</div>
+      <div class="tr">${f.fr}</div>
+      <p style="color:var(--mut);font-size:.92rem;max-width:36rem;margin:1.2rem auto 0;line-height:1.7;text-align:left">${f.verdict}</p>`;
+    w.appendChild(box);
+
+    const rec = el("div", "card");
+    rec.appendChild(el("h3", null, "Le fil de la conversation"));
+    rec.querySelector("h3").style.margin = "0 0 .9rem";
+    fil.forEach(x => rec.appendChild(el("div", "esc-tour" + (x.moi ? " moi" : ""),
+      `<span class="r">${x.qui}</span><span class="t">${x.t}</span>`)));
+    const st = el("div", "scoreline");
+    st.style.marginTop = "1rem";
+    st.innerHTML = aides === 0
+      ? `<b style="color:var(--ok)">${tours} tours, sans jamais afficher le texte.</b> Tu as tenu une conversation entière à l'oreille.`
+      : `${tours} tours · texte affiché ${aides} fois. Rejoue-la : la deuxième fois tu en auras besoin deux fois moins.`;
+    rec.appendChild(st);
+    w.appendChild(rec);
+
+    const row = el("div", "row"); row.style.marginTop = "1rem";
+    const again = el("button", "btn pri", "Rejouer en prenant un autre chemin");
+    again.onclick = () => runEscena(sc);
+    const mine = el("button", "btn", "＋ Garder les répliques utiles");
+    mine.onclick = () => {
+      let n = 0;
+      fil.filter(x => x.moi).forEach(x => {
+        const src = Object.values(sc.noeuds).flatMap(nd => nd.rep).find(r => r.es === x.t);
+        if (src && !Store.data.mined.some(m => m.es === src.es)) {
+          Store.data.mined.push({ id: "m" + Date.now() + n, lvl: 2, es: src.es, fr: src.fr, tag: "perso", note: "Escena — " + sc.titre });
+          n++;
+        }
+      });
+      Store.save(); mine.textContent = `✓ ${n} répliques ajoutées`; mine.disabled = true;
+    };
+    const back = el("button", "btn", "← Autres scènes");
+    back.onclick = () => renderEscenas();
+    row.append(again, mine, back);
+    w.appendChild(row);
+    Sound.play(f.dit);
+    if (typeof autoSync === "function") autoSync();
+  };
+
+  draw(sc.depart);
   window.scrollTo(0, 0);
 }
 

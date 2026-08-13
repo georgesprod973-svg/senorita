@@ -17,6 +17,7 @@
     <button data-v="home" class="on">Aujourd'hui</button>
     <button data-v="session">Session</button>
     <button data-v="machine">La Machine</button>
+    <button data-v="escenas">Escenas</button>
     <button data-v="rules">Cheat&nbsp;code</button>
     <button data-v="meca">Mécaniques</button>
     <button data-v="islands">Îlots</button>
@@ -46,6 +47,7 @@
   </div>
   <div class="row" style="justify-content:center;margin-bottom:1.4rem">
     <button class="btn big" id="go-machine">🪜 La Machine — construire sans mémoriser</button>
+    <button class="btn big" id="go-escenas">🗣 Escenas — quelqu'un te répond</button>
   </div>
 
   <div class="grid3">
@@ -90,6 +92,12 @@
 <section class="view" id="v-machine">
   <div id="mach-home"></div>
   <div id="mach-run" class="hidden"></div>
+</section>
+
+<!-- ══════════ ESCENAS ══════════ -->
+<section class="view" id="v-escenas">
+  <div id="esc-home"></div>
+  <div id="esc-run" class="hidden"></div>
 </section>
 
 <!-- ══════════ CHEAT CODE ══════════ -->
@@ -219,6 +227,7 @@
 <script src="js/srs.js"></script>
 <script src="js/grammar.js"></script>
 <script src="js/machine.js"></script>
+<script src="js/escenas.js"></script>
 <script src="js/speech.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/sync.js"></script>
