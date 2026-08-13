@@ -78,6 +78,7 @@ function show(v) {
   if (v !== "session") Session.abort();
   if (v === "home") renderHome();
   if (v === "rules") renderRules();
+  if (v === "machine") renderMachine();
   if (v === "meca") renderMeca();
   if (v === "prog") renderProg();
   if (v === "islands") renderIslands();
@@ -672,6 +673,143 @@ $("#meca-tab-c").onclick = () => {
 };
 
 
+
+
+/* ── La Machine ──────────────────────────────────────────
+   Construction par accrétion. Aucune note, aucun score, aucun
+   « raté » : le seul objectif est que tu produises 30 phrases
+   d'affilée sans jamais te sentir bloqué. Ce que ça installe
+   n'est pas du vocabulaire, c'est l'absence d'appréhension. */
+
+function renderMachine() {
+  $("#mach-run").classList.add("hidden");
+  const w = $("#mach-home"); w.classList.remove("hidden"); w.innerHTML = "";
+
+  w.appendChild(el("div", null, `<h2>La Machine</h2>
+    <p class="sub">Ici tu ne mémorises rien. Chaque marche ajoute <b style="color:var(--tx)">un seul</b> élément
+    à la précédente, et réutilise tout ce qui précède. Tu ne peux pas échouer : il n'y a ni note, ni score,
+    ni bonne réponse à retrouver. À la trentième marche tu produiras une phrase de vingt mots que
+    tu n'as jamais apprise. <b style="color:var(--gold)">C'est l'antidote au « j'ai du mal ».</b></p>`));
+
+  CHAINES.forEach(ch => {
+    const done = (Store.data.machine || {})[ch.id];
+    const card = el("div", "mach-card");
+    card.innerHTML = `<h4>${ch.titre}</h4>
+      <div class="sous">${ch.sous}${done ? ` · <span style="color:var(--ok)">terminée ${done.fois} fois</span>` : ""}</div>
+      <p>${ch.intro}</p>`;
+    const b = el("button", "btn pri", done ? "Refaire la montée" : "Commencer");
+    b.style.marginTop = "1rem";
+    b.onclick = e => { e.stopPropagation(); runChaine(ch); };
+    card.appendChild(b);
+    card.onclick = () => runChaine(ch);
+    w.appendChild(card);
+  });
+
+  w.appendChild(el("div", "warn-box", `<b>Comment s'en servir</b><br>
+    <span style="color:var(--mut)">Dis chaque phrase <b>à voix haute</b> avant de révéler — même mal, même lentement,
+    même en cherchant. C'est la sortie orale qui compte, pas l'exactitude. Si tu hésites plus de trois secondes,
+    révèle : hésiter davantage n'apprend rien, ça installe juste de l'appréhension.</span>`));
+}
+
+function runChaine(ch) {
+  $("#mach-home").classList.add("hidden");
+  const w = $("#mach-run"); w.classList.remove("hidden");
+  let i = 0, said = 0;
+  const t0 = Date.now();
+
+  const draw = () => {
+    w.innerHTML = "";
+    const bar = el("div", "mach-bar");
+    ch.pas.forEach((_, k) => bar.appendChild(el("i", k < i ? "past" : k === i ? "on" : "")));
+    w.appendChild(bar);
+
+    if (i >= ch.pas.length) return fin();
+
+    const p = ch.pas[i];
+    const st = el("div", "mach-stage");
+    st.appendChild(el("div", "mach-step", `Marche ${i + 1} / ${ch.pas.length}`));
+
+    if (p.neuf) st.appendChild(el("div", "mach-neuf", `<b>${p.neuf}</b><span>${p.sens}</span>`));
+    else st.appendChild(el("div", "tap-hint", "Rien de nouveau — tout est déjà à toi"));
+
+    st.appendChild(el("div", "mach-say", p.fr));
+
+    const rev = el("div", "hidden");
+    // on met en valeur le morceau neuf à l'intérieur de la phrase
+    const esHtml = p.neuf
+      ? p.es.replace(new RegExp(`(${p.neuf.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i"), "<em>$1</em>")
+      : p.es;
+    rev.appendChild(el("div", "mach-es", esHtml));
+    if (p.note) rev.appendChild(el("div", "mach-note", p.note));
+    st.appendChild(rev);
+
+    const row = el("div", "row"); row.style.justifyContent = "center";
+    const show = el("button", "btn pri big", "Je l'ai dite → montre");
+    show.onclick = () => {
+      if (!rev.classList.contains("hidden")) return;
+      said++;
+      rev.classList.remove("hidden");
+      Sound.play(p.es);
+      row.innerHTML = "";
+      const again = el("button", "btn", "🔊 Réécouter");
+      again.onclick = () => Sound.play(p.es);
+      const slow = el("button", "btn", "🐢 Lentement");
+      slow.onclick = () => Sound.play(p.es, 0.6);
+      const nx = el("button", "btn pri big", i + 1 >= ch.pas.length ? "Voir la phrase finale →" : "Marche suivante →");
+      nx.onclick = () => { i++; draw(); };
+      row.append(again, slow, nx);
+    };
+    row.appendChild(show);
+    st.appendChild(row);
+    w.appendChild(st);
+
+    const quit = el("button", "btn", "← Quitter la montée");
+    quit.style.marginTop = "1rem";
+    quit.onclick = () => renderMachine();
+    w.appendChild(quit);
+  };
+
+  const fin = () => {
+    const mins = Math.max(1, Math.round((Date.now() - t0) / 60000));
+    Store.data.machine = Store.data.machine || {};
+    const prev = Store.data.machine[ch.id];
+    Store.data.machine[ch.id] = { fois: (prev?.fois || 0) + 1, at: Date.now() };
+    const e = SRS.today(); e.min += mins; e.reviews += said; Store.save();
+
+    const box = el("div", "mach-final");
+    box.innerHTML = `<div class="mach-step">Tu viens de construire ça</div>
+      <div class="big">${ch.final}</div>
+      <div class="tr">${ch.finalFr}</div>
+      <p style="color:var(--mut);font-size:.92rem;max-width:34rem;margin:0 auto 1.4rem;line-height:1.7">
+        <b style="color:var(--gold)">${ch.final.split(/\s+/).length} mots.</b>
+        Tu n'as mémorisé aucune de ces phrases — tu les as fabriquées, une pièce à la fois.
+        C'est exactement ce que tu feras en conversation réelle : assembler, pas réciter.
+      </p>`;
+    const row = el("div", "row"); row.style.justifyContent = "center";
+    const play = el("button", "btn pri big", "🔊 Écouter la phrase entière");
+    play.onclick = () => Sound.play(ch.final);
+    const slow = el("button", "btn", "🐢 Lentement");
+    slow.onclick = () => Sound.play(ch.final, 0.6);
+    const mine = el("button", "btn", "＋ Garder dans mes phrases");
+    mine.onclick = () => {
+      Store.data.mined.push({ id: "m" + Date.now(), lvl: 4, es: ch.final, fr: ch.finalFr, tag: "perso", note: "Construite dans La Machine — " + ch.titre });
+      Store.save(); mine.textContent = "✓ Ajoutée au deck"; mine.disabled = true;
+    };
+    row.append(play, slow, mine);
+    box.appendChild(row);
+    w.innerHTML = "";
+    w.appendChild(box);
+    const back = el("button", "btn", "← Retour aux montées");
+    back.style.marginTop = "1rem";
+    back.onclick = () => renderMachine();
+    w.appendChild(back);
+    Sound.play(ch.final);
+    if (typeof autoSync === "function") autoSync();
+  };
+
+  draw();
+  window.scrollTo(0, 0);
+}
 
 /* ── Synchronisation ─────────────────────────────────────── */
 function renderSync() {
