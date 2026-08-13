@@ -72,7 +72,9 @@ function setAmbience(tag) {
 }
 
 /* ── Navigation ─────────────────────────────────────────── */
-function show(v) {
+function show(v, fromHash) {
+  if (!$("#v-" + v)) v = "home";
+  if (!fromHash && location.hash.slice(1) !== v) location.hash = v;
   $$("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   $$(".view").forEach(s => s.classList.toggle("on", s.id === "v-" + v));
   if (v !== "session") Session.abort();
@@ -112,6 +114,7 @@ function renderHome() {
     + (due ? ` · ${due} à réviser` : "");
 }
 $("#go").onclick = () => { show("session"); Session.start(); };
+$("#go-machine").onclick = () => show("machine");
 
 /* ============================================================
    SESSION — 4 phases
@@ -1229,5 +1232,8 @@ document.addEventListener("sound-ready", () => { if ($("#v-set").classList.conta
 document.addEventListener("voices-ready", () => { if ($("#v-set").classList.contains("on")) renderSettings(); });
 
 /* ── Go ─────────────────────────────────────────────────── */
-renderHome();
+/* Chaque vue a son adresse : /#machine, /#prog… Ça permet de partager un
+   lien direct, et le bouton retour du navigateur redevient utile. */
+window.addEventListener("hashchange", () => show(location.hash.slice(1) || "home", true));
+show(location.hash.slice(1) || "home", true);
 micBanner();

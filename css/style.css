@@ -268,3 +268,14 @@ select{background:var(--surf2);border:1px solid var(--line);border-radius:8px;pa
 }
 .mach-final .big{font-family:var(--serif);font-size:1.75rem;line-height:1.45;color:var(--gold);margin:1rem auto;max-width:38rem}
 .mach-final .tr{font-size:.95rem;color:var(--mut);max-width:36rem;margin:0 auto 1.4rem}
+
+/* ── Navigation : neuf onglets ne tiennent pas sur un téléphone ──
+   En scroll horizontal, six d'entre eux étaient purement invisibles,
+   sans aucun indice qu'il fallait faire glisser. On passe en grille
+   qui s'enroule dès que la largeur manque. */
+@media (max-width:900px){
+  header{flex-wrap:wrap;padding:.7rem .9rem .5rem}
+  .brand{flex:1}
+  nav{flex:0 0 100%;order:3;flex-wrap:wrap;gap:.25rem;margin-top:.5rem;overflow:visible}
+  nav button{font-size:.8rem;padding:.35rem .6rem;background:var(--surf2)}
+}
